@@ -712,4 +712,37 @@ To evaluate a cond expression:
     (cond [true "smaller"]
     "smaller
   
- 
+The data defitions:
+
+The problem domain is information that were be represented as data into the program. We transfer that informaton to be represented and viceverse.
+Data definitions tells us how to represente the data with the information in the problem domain.
+
+Data definitions describes:
+   -How to form data of a new type
+   -How to represent information as data
+   -How to interpret data as information
+   -Template for operating on data
+
+Data definitions simplifies function:
+   -Restricts data consumed
+   -Restricts data produced
+   -Helps generate examples
+   -Provides template
+
+
+Atomic Non-Distinct Data Definitions:
+
+Problem:
+
+Imagine that you are desingning a program that, among other things, has information about the name of cities in its problem domain.
+Desing a data definitions to represent the name of the city.
+
+
+A data definitions consists of four or five parts:
+    1. A possible structure definition
+    2. A type comment that defines a new type name and describes how to form data.
+    3. An interpretation that describes the correspondence between information and data.
+    4. One or more examples of the data.
+    5. A template for a 1 argument function operating on data of this type.
+
+
