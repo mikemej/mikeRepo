@@ -1,0 +1,24 @@
+Structure if the main Function parseDetail_logMain
+
+This function takes some links and return a txt file with some main information.
+
+splitMain   [url] -->  listRest
+splitRes    [url] -->  list_log
+makeDir     [url] -->  path
+parseDetail [url] -->  file.txt
+parseDevice [url] -->  file.txt (if a software exception appears on the device logs)
+
+splitMain
+The function consumes an url and return a list of links with status equal to failed.
+
+splitRes
+The function consumes an url and rerturn a list of urls that contains logs of the test, and each url is distintict than sumary and mm.log
+
+makeDir
+The function consumes an url and it createsa directory with the corresponding run ID of the test run if the directory doesn't exists and return the directory path.
+
+parseDetail
+The function consumes an url with the detail.log and return a txt file with the summary of the commands and the corresponding output, logical topology, testcase name, test case path and othe important information related to the test result.
+
+parseDevice
+The function consumes some links with device logs and return a txt file with information related to an assert or software exception, if does the assert was shown on the device logs.

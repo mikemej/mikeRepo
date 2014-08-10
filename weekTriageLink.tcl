@@ -9,12 +9,8 @@
 #crear link del CIT
 #
 # link de CIT
-#http://prodlabrpt.usa.hp.com/cgi-bin/testResults?restrict=programs.programName~not%20regexp~-%27Laredo%20PSR%7CCharleston%20Bedrock%27,results3.status~not%20regexp~%27Passed%27,results3.testCategory~%3D~%27CIT%27,programs.programName~regexp~%27gecko%7CKnoxville%7CNashville%20Aggregator%7CIrvine%20Bedrock%7Cspecials_quartz%7CPeridot%20Specials%7CCommon%20Criteria%20NDPP%7CLakes%20phase%202%7Cbolt%7Cmango%7Crel_jacksonville%7Claredo%20agregator%27&sort=results3.bugID&resultsPP=2000&cols=triage&dateRange=2w&showTADev=1&showBuilds=1
+set link {http://prodlabrpt.usa.hp.com/cgi-bin/testResults?restrict=programs.programName~not%20regexp~-%27Laredo%20PSR%7CCharleston%20Bedrock%27,results3.status~not%20regexp~%27Passed%27,results3.testCategory~%3D~%27CIT%27,programs.programName~regexp~%27gecko%7CKnoxville%7CNashville%20Aggregator%7CIrvine%20Bedrock%7Cspecials_quartz%7CPeridot%20Specials%7CCommon%20Criteria%20NDPP%7CLakes%20phase%202%7Cbolt%7Cmango%7Crel_jacksonville%7Claredo%20agregator%27&sort=results3.bugID&resultsPP=2000&cols=triage&dateRange=2w&showTADev=1&showBuilds=1}
 package require http
-source {E:\\libraryTCL\\tools\\commonVariables.tcl}
-set archivo {E:\\logs\\Triage.txt}
-set archive [file normalize $archivo]
-set filetest [open $archive w]
 set commandList ""
 set noCommandList ""
 set branchList ""
@@ -24,12 +20,9 @@ set command ""
 set aux 0
 set noAux 0
 set TESTWARE "\/pnb\/software\/at\/sand00\/mejiasmi\/testware"
-set link $linkTriage::link
-set run $linkTriage::run
+set run 5
 set slash "\\|"
 regsub -all $slash $link {%7C} Link
-puts $filetest "\n-------------------------------------------------\nEste es el link del CIT :\n$Link\n
--------------------------------------------------"
 #Extrae la informacion de CIT por medio del link
 set http [http::geturl $Link]
 set data [http::data $http]
@@ -68,7 +61,6 @@ foreach cont $texto {
          }
       }
       if {[regexp {Test_Case\"\>\<.+\>*build} $line]} {
-         puts $filetest $line
       }
       if {[regexp {Test_Case\"\>\<.+\>([0-9A-Za-z\_\.\-]+)} $line match testCase]} { ; #Se hace parseo del Test Case a correr
          if {[regexp {build_} $testCase]} {
@@ -82,7 +74,7 @@ foreach cont $texto {
          }
       }
       if {[regexp {Binary\"\>\<.+\>[a-z]+\/[A-Z0-9]+\/(.*.swi)} $line match build]} { ; #Se hace parseo del build a correr
-         set command "/tools/autotest -t $testCase -h $Family -i $build -r $runs -dbTestProgram $branch -m $ResultID -y"
+         set command "autotest -t $testCase -h $Family -i $build -r $runs -dbTestProgram $branch -m $ResultID -y"
          if {[lsearch $commandList $command] == -1} {
             lappend commandList $command
             incr aux
@@ -100,26 +92,10 @@ http::wait $html
 }
 after 5000 ; #tiempo de espera mientras realiza el linkeo
 #Este paso pone a correr todos los commando en autotest
-puts $filetest "Branches: \n"
 foreach br $branchList {
-   puts $filetest "\n\n\n   Esta es la lista de commandos para correr los casos de $br en autotest un total de $aux: \n"
    foreach command $commandList {
       if {[regexp $br $command] == 1} {
-         puts $filetest $command
-         #eval "plink -load HP1 $command"
+         eval $command
       }
    }
 }
-puts $filetest "\n\n\n   Esta es la lista de commandos que *** NO *** van a correr en autotest un total de $noAux: \n"
-foreach command $noCommandList {
-   puts $filetest $command
-}
-
-close $filetest
-
-foreach command $commandList {
-   eval "plink -load HP1 $command"
-}
-eval exit
-
-

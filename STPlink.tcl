@@ -6,12 +6,12 @@
 # Softtek
 ##SCRIPT-######################################################################
 # Source Suite specific variables
-source {E:\libraryTCL\tools\commonVariables.tcl}
+#source {E:\libraryTCL\tools\commonVariables.tcl}
 package require http
-set aux $StpLink::aux
+set aux 0
 #Numero del Bug al que se va a linkear/BUGID 10322 for STP
-set bugID $StpLink::STPbugID
-set ResList $StpLink::ResList
+set bugID 10322
+set ResList {16076477 16042626 16076751}
 set http ""
 foreach ResultID $ResList {
 set Newhttp "http://prodlabrpt.usa.hp.com/cgi-bin/db/dbUpdateDataBugs.pl?resultID=$ResultID&bugID=$bugID"
