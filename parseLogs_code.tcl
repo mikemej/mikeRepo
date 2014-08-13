@@ -1,11 +1,13 @@
 ###################################################################
-##Script to parse all the commands of the detail.log file.
-##The Script takes the topology and all the commands that was
-##sent by the dut and the workstation in the test case.
+## Script to parse all the commands of the detail.log file.
+## The Script takes the topology and all the commands that was
+## sent by the dut and the workstation in the test case.
+## it does search for a software exception and look which link contain
+## the software exception
 ###################### parseDetail_log ############################
 package require http
-set arg http://pnb-cit-05.rose.hp.com/at/log00/essw_cit/C4086204/G00126/MemoryTest_OSPFv2_16K_Routes_0xa13db80_0/detail.log
-
+#set arg http://pnb-cit-05.rose.hp.com/at/log00/essw_cit/C4086204/G00126/MemoryTest_OSPFv2_16K_Routes_0xa13db80_0/detail.log
+set var http://prodlabrpt.usa.hp.com/cgi-bin/testResults?restrict=testrunid.testRunIdName~=~%27U4084644%27
 proc parseUrl {url} {
     set runList ""
     set link [http::geturl $url]
@@ -17,7 +19,7 @@ proc parseUrl {url} {
             set status [string tolower $status]
             if {$status == "failed"} {
                 if {[regexp {class\=\"Logs\"\>\<.*?href\=\"(.*?\/(G[0-9]+)\/.*)\"\>Test} $test {} run ID]} {
-                    set tail {/detail.log}
+                    set tail {/}
                     set runID [concat $run$tail]
                     lappend runList $runID
                 }
@@ -27,7 +29,24 @@ proc parseUrl {url} {
     return $runList
 }
 
+proc splitLogsFiles {link} {
+    set logList ""
+    set url [http::geturl $link]
+    set data [http::data $url]
+    set newData [split $data \n]
+    foreach l $newData {
+        if {[regexp {href\=\"(.*?\.log)} $l {} log] == 1} {
+            if {$log != "summary.log"} {
+                set logPath [concat $link$log]
+                lappend logList $logPath
+            }
+        }
+    }
+    return $logList
+}
+
 proc parseDetail {link} {
+    global filelog
     set stepResult 0
     set stepH ""
     set match 0
@@ -37,16 +56,6 @@ proc parseDetail {link} {
     set testBuild ""
     set testCasePath ""
     set targetDevice ""
-    regexp {((U|C)[0-9]+).(G[0-9]+)} $link {} testID GID
-    if {[file exist "E:\\logs\\$testID"] != 1} {
-        set dir "C:\\mike\\logs\\$testID"
-        set aa [file mkdir "C:\\mike\\logs\\$testID"]
-    } else {
-        set dir "C:\\mike\\logs\\$testID"
-    }
-    set File "$dir\\run$GID.txt"
-    set file [file normalize $File]
-    set filelog [open $file w]
     set url [http::geturl $link]
     set data [http::data $url]
     regexp {Test Case Information.*?debug} $data testInfo
@@ -150,13 +159,50 @@ proc parseDetail {link} {
         puts $filelog $command
     } 
     http::cleanup $link
-    close $filelog
     eval exit
 }
 
-# foreach test [parseUrl $arg] {
-    # parseDetail $test
-# }
+proc parseDevice {link} {
+    global filelog
+    set url [http::geturl $link]
+    set data [http::data $url]
+    if {[regexp {(Software exception at.*)} $data {} excep]} {
+        set line 0
+        puts $filelog "\n#################### ++ Software exception ++ ####################\n"
+        puts $filelog "Software exception link:\n $link \n"
+        foreach l [split $excep \n] {
+            if {$line <= 20} {            
+                puts $filelog $l
+                incr line
+            }
+        }
+    }
+    puts $filelog "\n#################### -- Software exception -- ####################\n\n"
+}
 
-parseDetail http://pnb-cit-05.rose.hp.com/at/log00/essw_cit/C4086204/G00126/MemoryTest_OSPFv2_16K_Routes_0xa13db80_0/detail.log
+proc mainProc {link} {
+    global filelog
+    foreach test [parseUrl $link] {
+        puts $test
+        regexp {([UC0-9]+).(G[0-9]+)} $test {} testID GID
+        if {[file exist "C:\\HP\\logs\\$testID"] != 1} {
+            set dir "C:\\HP\\logs\\$testID"
+            set aa [file mkdir "C:\\HP\\logs\\$testID"]
+        } else {
+            set dir "C:\\HP\\logs\\$testID"
+        }
+        set File "$dir\\run$GID.txt"
+        set file [file normalize $File]
+        set filelog [open $file w]
+        foreach log [splitLogsFiles $test] {
+            if {[regexp "detail/.log" $log] == 1} {
+                parseDetail $log
+            } else {
+                parseDevice $log
+            }
+        }
+    }
+    close $filelog
+}
 
+mainProc $var
