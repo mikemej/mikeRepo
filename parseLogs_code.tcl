@@ -2,14 +2,12 @@
 ## Script to parse all the commands of the detail.log file.
 ## The Script takes the topology and all the commands that was
 ## sent by the dut and the workstation in the test case.
-## Luis Cepesdes && Michael Mejias
-## Costa Rica 2014
+## it does search for a software exception and look which link contain
+## the software exception
 ###################### parseDetail_log ############################
 package require http
-#source {E:\\libraryTCL\\tools\\commonVariables.tcl}
-#set arg $parseDetail::arg
-set arg {http://prodlabrpt.usa.hp.com/cgi-bin/testResults?restrict=testrunid.testRunIdName~=~%27U4054232%27}
-
+#set arg http://pnb-cit-05.rose.hp.com/at/log00/essw_cit/C4086204/G00126/MemoryTest_OSPFv2_16K_Routes_0xa13db80_0/detail.log
+set var http://prodlabrpt.usa.hp.com/cgi-bin/testResults?restrict=testrunid.testRunIdName~=~%27U4084644%27
 proc parseUrl {url} {
     set runList ""
     set link [http::geturl $url]
@@ -26,40 +24,46 @@ proc parseUrl {url} {
                     lappend runList $runID
                 }
             }
-
         }      
     }
     return $runList
 }
 
-proc mkDir {l} {
-   regexp {(U[0-9]+).(G[0-9]+)} $link {} testID GID
-   if {[file exist "E:\\logs\\$testID"] != 1} {
-        set dir "E:\\logs\\$testID"
-        set aa [file mkdir "E:\\logs\\$testID"]
-   } else {
-        set dir "E:\\logs\\$testID"
-   }
-    return $dir
+proc splitLogsFiles {link} {
+    set logList ""
+    set url [http::geturl $link]
+    set data [http::data $url]
+    set newData [split $data \n]
+    foreach l $newData {
+        if {[regexp {href\=\"(.*?\.log)} $l {} log] == 1} {
+            if {$log != "summary.log"} {
+                set logPath [concat $link$log]
+                lappend logList $logPath
+            }
+        }
+    }
+    return $logList
 }
+
 proc parseDetail {link} {
+    global filelog
     set stepResult 0
     set stepH ""
     set match 0
     set errorList 0
     set commandList ""
-    set File "$dir\\run$GID.txt"
-    set file [file normalize $File]
-    set filelog [open $file w]
-    puts $filelog "\n \n ..... Parsing commands and outputs .....\n \n"
+    set testCaseName ""
+    set testBuild ""
+    set testCasePath ""
+    set targetDevice ""
     set url [http::geturl $link]
     set data [http::data $url]
     regexp {Test Case Information.*?debug} $data testInfo
-    regexp {testCaseName\s+\:\s([0-9a-zA-Z\_\.]+)} $testInfo {} testCaseName
+    regexp {testCaseName\s+\:\s([0-9a-zA-Z\_\.\-]+)} $testInfo {} testCaseName
     regexp {targetBuild \s+\:\s.+?/U[0-9]+/(\w+.swi)} $testInfo {} testBuild
     regexp {testCase\s+\:\s(.+.tcl)} $testInfo {} testCasePath
     regexp {mappingTargetDevice\s+\:\s([\w-]+)} $testInfo {} targetDevice
-    puts $filelog "################################# Test Case Information #################################\n"
+    puts $filelog "\n\n################################# Test Case Information #################################\n"
     puts $filelog "Test Case Name:  $testCaseName\n"
     puts $filelog "Test Case Name path:  $testCasePath\n"
     puts $filelog "Test Build:  $testBuild\n"
@@ -75,7 +79,7 @@ proc parseDetail {link} {
     }
 	set devList ""
 	set lnkList ""
-	if {[regexp {(All\sDependencies.*info.*?debug)} $data {} map]} {
+	if {[regexp {(TopologyMapProcess.+?debug)} $data {} map]} {
 		foreach line [split $map \n] {
 			if {[regexp {\]\sMapping.*(::.*)} $line {} mapDep]} {
 				if {[regexp {topo.lnk} $mapDep] == 0} {
@@ -97,9 +101,9 @@ proc parseDetail {link} {
 		puts $filelog $n
 	}
 
-    puts $filelog "#######################################################################\n\n"
+    puts $filelog "###########################################################################\n\n"
     puts $filelog "\n -- STEPS START HERE AND INCLUDE THE SHOW COMMANDS USED --\n"
-    regexp {STEP\+.*RESULT\+} $data steps
+    regexp -nocase "STEP\+.*RESULT\+" $data steps
     set sub {STEP\+}
     regsub -all $sub $steps {¢} Pasos
     foreach step [split $Pasos {¢}] {
@@ -115,22 +119,19 @@ proc parseDetail {link} {
             set att "Attempting"
             regsub -all $att $match {^} Commandos
             foreach cmd [split $Commandos {^}] {
-                if {[regexp {send the command\s+(.+)\s?to.+workstationFunc.+CLI} $cmd {} unixComm]} {
-                    puts $filelog "Workstation command : $unixComm" 
-                    lappend commandList $unixComm
-                } elseif {[regexp {send the command\s+(.+)\s?to.+procurveFunc.+Device} $cmd {} command]} {
-                    puts $filelog "Switch command : $command" 
+                if {[regexp {send the command\s\'(.+)\'\sto.+(exp[0-9]+)} $cmd {} command exp]} {
+                    puts $filelog "command entered : $command      to -->    $exp" 
                     lappend commandList $command
-                } elseif {[regexp {send the command\s+(.+)\s?to.+switchFunc.+CLI} $cmd {} command0]} {
-                    puts $filelog "Switch command : $command0"
-                    lappend commandList $command0
+                } elseif {[regexp {send the command\s\'{0,1}(.+?)\'{0,1}\sto:\s(exp[0-9]+)} $cmd {} command exp]} {
+                    puts $filelog "command entered : $command      to -->    $exp" 
+                    lappend commandList $command
                 }
-            }
-            set output 0
-            if {[regexp {[\[\]\:A-Za-z]+\sexp[0-9]+\s(\{[A-Za-z0-9\s\-\:\(\)\.\,\'\;\[\]\@\=\<\>\*\~\%\#\"\_\/\|\+]+\})} $cmd {} output]} {
-                if {$output != 0} {
-                    puts $filelog "Output : $output\n"
-                } 
+                set output 0
+                if {[regexp {[\[\]\:\w]+\sexp\d+\s\{(.*?)\}.+?debug} $cmd {} output]} {
+                    if {$output != 0} {
+                        puts $filelog "Output : { $output }\n"
+                    } 
+                }
             }
         }
         if {$stepResult != 0} {
@@ -158,20 +159,50 @@ proc parseDetail {link} {
         puts $filelog $command
     } 
     http::cleanup $link
-    close $filelog
     eval exit
 }
 
-foreach test [parseUrl $arg] {
-    set u [http::geturl $test]
-    set d [http::data $u]
-    if {[regexp {href=.([\w\-]+\.lo\w+)} $line {} l]} {
-        if {([regexp {mm.log} $l] != 1) && ([regexp {summary.log} $l] != 1)} {
-            set a [concat $u$l]
-            puts $a
+proc parseDevice {link} {
+    global filelog
+    set url [http::geturl $link]
+    set data [http::data $url]
+    if {[regexp {(Software exception at.*)} $data {} excep]} {
+        set line 0
+        puts $filelog "\n#################### ++ Software exception ++ ####################\n"
+        puts $filelog "Software exception link:\n $link \n"
+        foreach l [split $excep \n] {
+            if {$line <= 20} {            
+                puts $filelog $l
+                incr line
+            }
         }
     }
-}parseDetail $test
+    puts $filelog "\n#################### -- Software exception -- ####################\n\n"
 }
 
+proc mainProc {link} {
+    global filelog
+    foreach test [parseUrl $link] {
+        puts $test
+        regexp {([UC0-9]+).(G[0-9]+)} $test {} testID GID
+        if {[file exist "C:\\HP\\logs\\$testID"] != 1} {
+            set dir "C:\\HP\\logs\\$testID"
+            set aa [file mkdir "C:\\HP\\logs\\$testID"]
+        } else {
+            set dir "C:\\HP\\logs\\$testID"
+        }
+        set File "$dir\\run$GID.txt"
+        set file [file normalize $File]
+        set filelog [open $file w]
+        foreach log [splitLogsFiles $test] {
+            if {[regexp "detail/.log" $log] == 1} {
+                parseDetail $log
+            } else {
+                parseDevice $log
+            }
+        }
+    }
+    close $filelog
+}
 
+mainProc $var
